@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import type { Note, NoteImage } from './types'
+import type { Note, NoteImage, Block } from './types'
 import { useNotes } from './hooks/useNotes'
 import QuickCapture from './components/QuickCapture'
 import NoteList from './components/NoteList'
@@ -54,7 +54,7 @@ export default function App() {
   }, [])
 
   const handleUpdateNote = useCallback(
-    async (id: string, data: { title?: string; content?: string; summary?: string | null; images?: NoteImage[] }) => {
+    async (id: string, data: { title?: string; content?: string; summary?: string | null; images?: NoteImage[]; blocks?: Block[] }) => {
       await updateNote(id, data)
     },
     [updateNote]

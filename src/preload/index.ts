@@ -26,7 +26,8 @@ const api = {
   },
   window: {
     hideQuickCapture: () => ipcRenderer.send('window:hideQuickCapture'),
-    showMainWindow: () => ipcRenderer.send('window:showMainWindow')
+    showMainWindow: () => ipcRenderer.send('window:showMainWindow'),
+    resizeQuickCapture: (height: number) => ipcRenderer.send('window:resizeQuickCapture', height)
   },
   notifyNotesChanged: () => ipcRenderer.send('notes:changed')
 }

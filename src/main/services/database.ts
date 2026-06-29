@@ -8,6 +8,16 @@ interface NoteImage {
   data: string
 }
 
+type BlockType = 'text' | 'bullet' | 'numbered' | 'todo' | 'heading1' | 'heading2' | 'heading3'
+
+interface Block {
+  id: string
+  type: BlockType
+  content: string
+  checked?: boolean
+  indent: number
+}
+
 interface NoteRecord {
   id: string
   title: string
@@ -16,6 +26,7 @@ interface NoteRecord {
   category: string
   tags: string[]
   images: NoteImage[]
+  blocks?: Block[]
   source: 'quick_capture' | 'clipboard' | 'manual'
   created_at: string
   updated_at: string
@@ -107,6 +118,7 @@ export function createNote(data: {
   source?: string
   category?: string
   images?: NoteImage[]
+  blocks?: Block[]
 }): NoteRecord {
   const now = new Date().toISOString()
 
@@ -118,6 +130,7 @@ export function createNote(data: {
     category: data.category ?? '',
     tags: data.tags ?? [],
     images: data.images ?? [],
+    blocks: data.blocks ?? [],
     source: (data.source as NoteRecord['source']) ?? 'manual',
     created_at: now,
     updated_at: now
@@ -130,7 +143,7 @@ export function createNote(data: {
 
 export function updateNote(
   id: string,
-  data: { title?: string; content?: string; tags?: string[]; summary?: string | null; category?: string; images?: NoteImage[] }
+  data: { title?: string; content?: string; tags?: string[]; summary?: string | null; category?: string; images?: NoteImage[]; blocks?: Block[] }
 ): NoteRecord {
   const index = notes.findIndex((n) => n.id === id)
   if (index === -1) throw new Error(`Note not found: ${id}`)
@@ -143,6 +156,7 @@ export function updateNote(
   if (data.summary !== undefined) existing.summary = data.summary
   if (data.category !== undefined) existing.category = data.category
   if (data.images !== undefined) existing.images = data.images
+  if (data.blocks !== undefined) existing.blocks = data.blocks
 
   existing.updated_at = new Date().toISOString()
 

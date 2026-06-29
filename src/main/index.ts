@@ -43,7 +43,7 @@ function createQuickCaptureWindow(): void {
   const { x: displayX, y: displayY, width: displayWidth } = activeDisplay.workArea
 
   const winWidth = 500
-  const winHeight = 50
+  const winHeight = 100
 
   quickCaptureWindow = new BrowserWindow({
     width: winWidth,
@@ -85,7 +85,7 @@ function showQuickCapture(): void {
   const { x: displayX, y: displayY, width: displayWidth } = activeDisplay.workArea
 
   const winWidth = 500
-  const winHeight = 50
+  const winHeight = 100
 
   quickCaptureWindow?.setBounds({
     x: displayX + Math.round((displayWidth - winWidth) / 2),
@@ -168,6 +168,13 @@ function registerWindowIpcHandlers(): void {
   ipcMain.on('window:showMainWindow', () => {
     mainWindow?.show()
     mainWindow?.focus()
+  })
+
+  ipcMain.on('window:resizeQuickCapture', (_event, height: number) => {
+    if (quickCaptureWindow && !quickCaptureWindow.isDestroyed()) {
+      const bounds = quickCaptureWindow.getBounds()
+      quickCaptureWindow.setBounds({ ...bounds, height })
+    }
   })
 
   // When notes change (e.g. QuickCapture saved), notify the main window

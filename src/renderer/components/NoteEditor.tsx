@@ -1,32 +1,87 @@
-import React, { useState, useEffect, useRef } from 'react'
-import type { Note, NoteImage } from '../types'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import type { Note, NoteImage, Block, BlockType } from '../types'
+import BlockEditor, { type BlockEditorHandle } from './BlockEditor'
 
 interface NoteEditorProps {
   note: Note
-  onUpdate: (id: string, data: { title?: string; content?: string; summary?: string | null; images?: NoteImage[] }) => Promise<void>
+  onUpdate: (id: string, data: { title?: string; content?: string; summary?: string | null; images?: NoteImage[]; blocks?: Block[] }) => Promise<void>
   onClose: () => void
+}
+
+function genId(): string {
+  return crypto.randomUUID()
+}
+
+function detectBlockType(text: string): { newType: BlockType; remaining: string } {
+  const hMatch = text.match(/^(#{1,3})\s(.*)$/)
+  if (hMatch) {
+    const level = hMatch[1].length as 1 | 2 | 3
+    return { newType: `heading${level}` as BlockType, remaining: hMatch[2] }
+  }
+  const todoCheckedMatch = text.match(/^-\s*\[x\]\s(.*)$/i)
+  if (todoCheckedMatch) return { newType: 'todo', remaining: todoCheckedMatch[1] }
+  const todoMatch = text.match(/^-\s*\[\s\]\s(.*)$/)
+  if (todoMatch) return { newType: 'todo', remaining: todoMatch[1] }
+  const bulletMatch = text.match(/^[-*]\s(.*)$/)
+  if (bulletMatch) return { newType: 'bullet', remaining: bulletMatch[1] }
+  const numMatch = text.match(/^\d+\.\s(.*)$/)
+  if (numMatch) return { newType: 'numbered', remaining: numMatch[1] }
+  return { newType: 'text', remaining: text }
+}
+
+function contentToBlocks(content: string): Block[] {
+  if (!content) return [{ id: genId(), type: 'text', content: '', indent: 0 }]
+  const lines = content.split('\n')
+  return lines.map(line => {
+    const trimmed = line.trim()
+    if (!trimmed) return { id: genId(), type: 'text', content: '', indent: 0 }
+    const { newType, remaining } = detectBlockType(trimmed)
+    const checked = newType === 'todo'
+      ? /^-\s*\[x\]\s/i.test(trimmed)
+      : undefined
+    return {
+      id: genId(),
+      type: newType,
+      content: remaining,
+      checked,
+      indent: 0
+    }
+  })
 }
 
 export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title)
-  const [content, setContent] = useState(note.content)
   const [saving, setSaving] = useState(false)
   const [summary, setSummary] = useState(note.summary)
   const [summarizing, setSummarizing] = useState(false)
   const [images, setImages] = useState<NoteImage[]>(note.images ?? [])
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [blocks, setBlocks] = useState<Block[]>(() => {
+    if (note.blocks && note.blocks.length > 0) return note.blocks
+    return contentToBlocks(note.content)
+  })
+  const blockEditorRef = useRef<BlockEditorHandle>(null)
 
   useEffect(() => {
     setTitle(note.title)
-    setContent(note.content)
     setSummary(note.summary)
     setImages(note.images ?? [])
+    if (note.blocks && note.blocks.length > 0) {
+      setBlocks(note.blocks)
+    } else {
+      setBlocks(contentToBlocks(note.content))
+    }
   }, [note.id])
+
+  // Derive content from blocks for AI and image processing
+  const allContent = blocks.map(b => b.content).join('\n')
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onUpdate(note.id, { title, content, images })
+      const currentBlocks = blockEditorRef.current?.getBlocks() ?? blocks
+      const textContent = currentBlocks.map(b => b.content).join('\n')
+      const effectiveTitle = title || currentBlocks.find(b => b.content.trim())?.content.slice(0, 50) || ''
+      await onUpdate(note.id, { title: effectiveTitle, content: textContent, blocks: currentBlocks, images })
     } finally {
       setSaving(false)
     }
@@ -35,7 +90,7 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
   const handleSummarize = async () => {
     setSummarizing(true)
     try {
-      const result = await window.clipCaptureAPI.ai.summarize(content)
+      const result = await window.clipCaptureAPI.ai.summarize(allContent)
       setSummary(result)
       await onUpdate(note.id, { summary: result })
     } catch (error) {
@@ -45,7 +100,7 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
     }
   }
 
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handleBlockPaste = async (e: React.ClipboardEvent, index: number) => {
     const items = Array.from(e.clipboardData.items)
     const imageItem = items.find(item => item.type.startsWith('image/'))
     if (!imageItem) return
@@ -54,18 +109,14 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
     const file = imageItem.getAsFile()
     if (!file) return
 
-    const textarea = e.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
     const reader = new FileReader()
     reader.onload = async (event) => {
       const dataUrl = event.target?.result as string
       try {
         const saved = await window.clipCaptureAPI.notes.saveImage(dataUrl)
         const placeholder = `![image](id:${saved.id})`
-        const newContent = content.substring(0, start) + placeholder + content.substring(end)
-        setContent(newContent)
+        document.execCommand('insertText', false, placeholder)
+        // blocks state is synced from DOM on the next user input
         setImages(prev => [...prev, { id: saved.id, data: dataUrl }])
       } catch (err) {
         console.error('Failed to save image:', err)
@@ -77,13 +128,13 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
   const handleRemoveImage = (imageId: string) => {
     setImages(prev => prev.filter(img => img.id !== imageId))
     const placeholderRegex = new RegExp(`!\\[image\\]\\(id:${imageId}\\)`, 'g')
-    setContent(prev => prev.replace(placeholderRegex, ''))
+    setBlocks(prev => prev.map(b => ({ ...b, content: b.content.replace(placeholderRegex, '') })))
   }
 
-  // Parse content to find referenced image IDs
+  // Parse blocks to find referenced image IDs
   const imagePlaceholderRegex = /!\[image\]\(id:([^)]+)\)/g
   const contentImageIds = new Set(
-    Array.from(content.matchAll(imagePlaceholderRegex)).map(m => m[1])
+    Array.from(allContent.matchAll(imagePlaceholderRegex)).map(m => m[1])
   )
   const activeImages = images.filter(img => contentImageIds.has(img.id))
 
@@ -96,7 +147,7 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
         <button
           className="toolbar-btn"
           onClick={handleSummarize}
-          disabled={summarizing || !content.trim()}
+          disabled={summarizing || !allContent.trim()}
         >
           {summarizing ? '生成中...' : 'AI 摘要'}
         </button>
@@ -120,13 +171,11 @@ export default function NoteEditor({ note, onUpdate, onClose }: NoteEditorProps)
           </div>
         )}
 
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onPaste={handlePaste}
-          placeholder="开始写笔记...（支持粘贴图片）"
-          className="editor-content"
+        <BlockEditor
+          ref={blockEditorRef}
+          blocks={blocks}
+          onChange={setBlocks}
+          onPaste={handleBlockPaste}
         />
 
         {activeImages.length > 0 && (

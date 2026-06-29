@@ -1,5 +1,5 @@
 import React from 'react'
-import type { Note } from '../types'
+import type { Note, Block } from '../types'
 
 interface NoteListProps {
   notes: Note[]
@@ -35,8 +35,11 @@ function formatDate(iso: string): string {
   })
 }
 
-function getPreview(content: string, maxLength = 80): string {
-  const text = content.replace(/\n/g, ' ').replace(/!\[image\]\(id:[^)]+\)/g, '[图片]')
+function getPreview(content: string, blocks?: Block[], maxLength = 80): string {
+  const source = blocks && blocks.length > 0
+    ? blocks.map(b => b.content).join(' ')
+    : content
+  const text = source.replace(/\n/g, ' ').replace(/!\[image\]\(id:[^)]+\)/g, '[图片]')
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
@@ -140,7 +143,7 @@ export default function NoteList({
                 &#10005;
               </button>
             </div>
-            <p className="note-item-preview">{getPreview(note.content)}</p>
+            <p className="note-item-preview">{getPreview(note.content, note.blocks)}</p>
             <div className="note-item-meta">
               <span>{formatDate(note.created_at)}</span>
               {note.category && (

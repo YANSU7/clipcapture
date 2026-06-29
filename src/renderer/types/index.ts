@@ -3,6 +3,16 @@ export interface NoteImage {
   data: string
 }
 
+export type BlockType = 'text' | 'bullet' | 'numbered' | 'todo' | 'heading1' | 'heading2' | 'heading3'
+
+export interface Block {
+  id: string
+  type: BlockType
+  content: string
+  checked?: boolean
+  indent: number
+}
+
 export interface Note {
   id: string
   title: string
@@ -11,6 +21,7 @@ export interface Note {
   category: string
   tags: string[]
   images: NoteImage[]
+  blocks?: Block[]
   source: 'quick_capture' | 'clipboard' | 'manual'
   created_at: string
   updated_at: string
@@ -23,6 +34,7 @@ export interface CreateNoteInput {
   source?: Note['source']
   category?: string
   images?: NoteImage[]
+  blocks?: Block[]
 }
 
 export interface UpdateNoteInput {
@@ -32,6 +44,7 @@ export interface UpdateNoteInput {
   summary?: string | null
   category?: string
   images?: NoteImage[]
+  blocks?: Block[]
 }
 
 export interface NoteFilters {
@@ -70,6 +83,7 @@ export interface ClipCaptureAPI {
   window: {
     hideQuickCapture: () => void
     showMainWindow: () => void
+    resizeQuickCapture: (height: number) => void
   }
 }
 
