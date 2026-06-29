@@ -2,6 +2,10 @@
 
 一款基于 Electron 的桌面笔记工具，支持快速捕获灵感、AI 智能分类整理、图片粘贴保存。
 
+## 演示
+
+[![ClipCapture 演示视频](https://img.shields.io/badge/演示-B站-red)](https://www.bilibili.com/video/BV1eQT56JENq/)
+
 ## 功能特性
 
 ### 快速捕获
@@ -111,7 +115,10 @@ clipcapture/
 │           └── global.css       # 全局样式
 ├── package.json
 ├── electron-vite.config.ts
-└── tsconfig.json
+├── tsconfig.json
+├── tsconfig.node.json
+├── assets/                    # 演示视频等资源
+└── .gitignore
 ```
 
 ## 数据存储
