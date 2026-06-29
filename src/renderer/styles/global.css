@@ -670,6 +670,77 @@ body {
   font-size: 13px;
 }
 
+.sync-info {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.sync-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sync-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.sync-info-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.sync-info-value {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.sync-info-key {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: monospace;
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sync-status-dot {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sync-status-dot.online {
+  color: var(--success);
+}
+
+.sync-status-dot.offline {
+  color: var(--danger);
+}
+
+.sync-copy-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sync-copy-btn:hover {
+  background: var(--bg-surface);
+}
+
 .settings-label {
   display: block;
   font-size: 13px;
@@ -885,6 +956,16 @@ body {
 
 .block-row:hover .block-content:empty::before {
   content: '输入 / 切换类型';
+}
+
+.block-timestamp {
+  flex-shrink: 0;
+  margin-left: 1.5em;
+  font-size: 0.75em;
+  color: #999;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* Heading styles */

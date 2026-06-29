@@ -91,27 +91,69 @@ export default function QuickCapture({ onSave }: QuickCaptureProps) {
     setSaving(true)
     try {
       if (mode === 'append' && selectedNote) {
-        // Append to existing note
-        const separator = selectedNote.content ? '\n\n' : ''
-        const newContent = selectedNote.content + separator + text
-        const newImages = [...selectedNote.images, ...images]
+        // Fetch latest note from DB to avoid stale data
+        const latestNote = await window.clipCaptureAPI.notes.get(selectedNote.id)
+        if (!latestNote) throw new Error('Note not found')
 
-        // If note uses blocks, add a new text block so the editor shows it
-        const newBlocks: Block[] | undefined = selectedNote.blocks && text
-          ? [...selectedNote.blocks, { id: crypto.randomUUID(), type: 'text', content: text, indent: 0 }]
-          : undefined
+        // Convert existing content to numbered blocks
+        let existingBlocks: Block[]
+        if (latestNote.blocks && latestNote.blocks.length > 0) {
+          existingBlocks = latestNote.blocks
+        } else if (latestNote.content) {
+          existingBlocks = latestNote.content.split('\n').filter(l => l.trim()).map(line => ({
+            id: crypto.randomUUID(),
+            type: 'numbered' as const,
+            content: line,
+            indent: 0
+          }))
+        } else {
+          existingBlocks = []
+        }
 
-        await window.clipCaptureAPI.notes.update(selectedNote.id, {
-          content: newContent,
-          images: newImages,
-          blocks: newBlocks
+        // Convert all existing blocks to numbered type
+        const numberedExisting = existingBlocks.map(b => ({
+          ...b,
+          type: 'numbered' as const,
+          checked: undefined
+        }))
+
+        // New content as numbered blocks with timestamp
+        const nowISO = new Date().toISOString()
+        const newLines = text.split('\n').filter(l => l.trim())
+        const appendedBlocks: Block[] = newLines.length > 0
+          ? newLines.map(line => ({
+              id: crypto.randomUUID(),
+              type: 'numbered' as const,
+              content: line,
+              indent: 0,
+              loggedAt: nowISO
+            }))
+          : []
+
+        const allBlocks = [...numberedExisting, ...appendedBlocks]
+        const allContent = allBlocks.map(b => b.content).join('\n')
+        const mergedImages = [...(latestNote.images || []), ...images]
+
+        await window.clipCaptureAPI.notes.update(latestNote.id, {
+          content: allContent,
+          images: mergedImages,
+          blocks: allBlocks
         })
       } else {
-        // Create new note
+        // Create new note with timestamped block
+        const blocks: Block[] = text ? [{
+          id: crypto.randomUUID(),
+          type: 'numbered',
+          content: text,
+          indent: 0,
+          loggedAt: new Date().toISOString()
+        }] : []
+
         const note = await window.clipCaptureAPI.notes.create({
           content: text,
           source: 'quick_capture',
-          images: images.length > 0 ? images : undefined
+          images: images.length > 0 ? images : undefined,
+          blocks: blocks.length > 0 ? blocks : undefined
         })
 
         // AI auto-analyze in background

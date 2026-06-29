@@ -5,6 +5,16 @@ function genId(): string {
   return crypto.randomUUID()
 }
 
+function formatLoggedAt(iso: string): string {
+  const d = new Date(iso)
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+  const day = d.getDate()
+  const hour = d.getHours().toString().padStart(2, '0')
+  const min = d.getMinutes().toString().padStart(2, '0')
+  return `${year}年${month}月${day}日 ${hour}:${min}`
+}
+
 interface BlockEditorProps {
   blocks: Block[]
   onChange: (blocks: Block[]) => void
@@ -289,6 +299,9 @@ const BlockRow = React.memo(function BlockRow({
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
       />
+      {block.loggedAt && (
+        <span className="block-timestamp">{formatLoggedAt(block.loggedAt)}</span>
+      )}
     </div>
   )
 })

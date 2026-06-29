@@ -11,6 +11,7 @@ export interface Block {
   content: string
   checked?: boolean
   indent: number
+  loggedAt?: string
 }
 
 export interface Note {
@@ -85,8 +86,19 @@ export interface ClipCaptureAPI {
     showMainWindow: () => void
     resizeQuickCapture: (height: number) => void
   }
+  sync: {
+    getStatus: () => Promise<SyncStatus>
+    regenerateKey: () => Promise<string>
+    restart: () => Promise<void>
+  }
 }
 
 export interface TrayState {
   isOpen: boolean
+}
+
+export interface SyncStatus {
+  running: boolean
+  port: number
+  apiKey: string
 }

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import * as database from '../services/database'
 import * as ai from '../services/ai'
 import * as config from '../services/config'
+import { isApiServerRunning, startApiServer, stopApiServer } from '../services/api-server'
 import { v4 as uuidv4 } from 'uuid'
 
 export function registerIpcHandlers(): void {
@@ -86,5 +87,23 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('notes:saveImage', (_event, dataUrl: string) => {
     return database.saveImage(dataUrl)
+  })
+
+  // Sync config
+  ipcMain.handle('sync:getStatus', () => {
+    return {
+      running: isApiServerRunning(),
+      port: config.getSyncPort(),
+      apiKey: config.getSyncApiKey()
+    }
+  })
+
+  ipcMain.handle('sync:regenerateKey', () => {
+    return config.regenerateSyncApiKey()
+  })
+
+  ipcMain.handle('sync:restart', () => {
+    stopApiServer()
+    startApiServer(config.getSyncApiKey(), config.getSyncPort())
   })
 }

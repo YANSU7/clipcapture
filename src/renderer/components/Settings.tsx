@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import type { SyncStatus } from '../types'
 
 interface SettingsProps {
   onClose: () => void
@@ -12,16 +13,20 @@ export default function Settings({ onClose }: SettingsProps) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     Promise.all([
       window.clipCaptureAPI.config.getApiKey(),
       window.clipCaptureAPI.config.getApiBaseUrl(),
-      window.clipCaptureAPI.config.getModel()
-    ]).then(([key, url, m]) => {
+      window.clipCaptureAPI.config.getModel(),
+      window.clipCaptureAPI.sync.getStatus()
+    ]).then(([key, url, m, sync]) => {
       setApiKey(key)
       setApiBaseUrl(url)
       setModel(m)
+      setSyncStatus(sync)
       setLoading(false)
     })
   }, [])
@@ -129,6 +134,58 @@ export default function Settings({ onClose }: SettingsProps) {
               </>
             )}
           </div>
+
+          {/* Sync section */}
+          <div className="settings-section">
+            <h2 className="settings-section-title">手机同步</h2>
+              <p className="settings-desc">
+                通过 Tailscale 在手机与电脑之间同步笔记。在电脑上安装 Tailscale，手机 App 通过以下信息连接。
+              </p>
+
+              {syncStatus && (
+                <div className="sync-info">
+                  <div className="sync-info-row">
+                    <span className="sync-info-label">服务器状态</span>
+                    <span className={`sync-status-dot ${syncStatus.running ? 'online' : 'offline'}`}>
+                      {syncStatus.running ? '运行中' : '已停止'}
+                    </span>
+                  </div>
+
+                  <div className="sync-info-row">
+                    <span className="sync-info-label">端口</span>
+                    <span className="sync-info-value">{syncStatus.port}</span>
+                  </div>
+
+                  <div className="sync-info-row">
+                    <span className="sync-info-label">API Key</span>
+                    <span className="sync-info-key">{syncStatus.apiKey}</span>
+                    <button
+                      className="sync-copy-btn"
+                      onClick={() => {
+                        navigator.clipboard.writeText(syncStatus.apiKey)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                      }}
+                    >
+                      {copied ? '已复制' : '复制'}
+                    </button>
+                  </div>
+
+                  <div className="sync-info-row">
+                    <button
+                      className="toolbar-btn toolbar-btn-secondary"
+                      onClick={async () => {
+                        await window.clipCaptureAPI.sync.regenerateKey()
+                        const status = await window.clipCaptureAPI.sync.getStatus()
+                        setSyncStatus(status)
+                      }}
+                    >
+                      重新生成 Key
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
         </div>
       </div>
     </div>

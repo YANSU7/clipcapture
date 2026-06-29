@@ -29,7 +29,12 @@ const api = {
     showMainWindow: () => ipcRenderer.send('window:showMainWindow'),
     resizeQuickCapture: (height: number) => ipcRenderer.send('window:resizeQuickCapture', height)
   },
-  notifyNotesChanged: () => ipcRenderer.send('notes:changed')
+  notifyNotesChanged: () => ipcRenderer.send('notes:changed'),
+  sync: {
+    getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+    regenerateKey: () => ipcRenderer.invoke('sync:regenerateKey'),
+    restart: () => ipcRenderer.invoke('sync:restart')
+  }
 }
 
 contextBridge.exposeInMainWorld('clipCaptureAPI', api)

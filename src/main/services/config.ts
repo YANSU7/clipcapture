@@ -1,17 +1,27 @@
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 
 interface AppConfig {
   openai_api_key: string
   api_base_url: string
   model: string
+  sync_api_key: string
+  sync_port: number
 }
 
 let config: AppConfig = {
   openai_api_key: '',
   api_base_url: '',
-  model: ''
+  model: '',
+  sync_api_key: '',
+  sync_port: 19876
+}
+
+function generateApiKey(): string {
+  const rand = crypto.randomBytes(6).toString('hex')
+  return `clip-${rand.slice(0, 4)}-${rand.slice(4, 8)}-${rand.slice(8, 12)}`
 }
 
 let configPath = ''
@@ -42,6 +52,34 @@ function saveConfig(): void {
 export function initConfig(): void {
   configPath = getConfigPath()
   loadConfig()
+  // Auto-generate sync API key if not set
+  if (!config.sync_api_key) {
+    config.sync_api_key = generateApiKey()
+    saveConfig()
+  }
+  if (!config.sync_port) {
+    config.sync_port = 19876
+    saveConfig()
+  }
+}
+
+export function getSyncApiKey(): string {
+  return config.sync_api_key
+}
+
+export function getSyncPort(): number {
+  return config.sync_port
+}
+
+export function setSyncPort(port: number): void {
+  config.sync_port = port
+  saveConfig()
+}
+
+export function regenerateSyncApiKey(): string {
+  config.sync_api_key = generateApiKey()
+  saveConfig()
+  return config.sync_api_key
 }
 
 export function getApiKey(): string {

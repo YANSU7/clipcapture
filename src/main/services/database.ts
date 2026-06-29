@@ -16,6 +16,7 @@ interface Block {
   content: string
   checked?: boolean
   indent: number
+  loggedAt?: string
 }
 
 interface NoteRecord {

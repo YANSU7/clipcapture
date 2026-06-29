@@ -1,8 +1,10 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, screen, ipcMain } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { initDatabase, closeDatabase } from './services/database'
 import { registerIpcHandlers } from './ipc/handlers'
-import { initConfig } from './services/config'
+import { initConfig, getSyncApiKey, getSyncPort } from './services/config'
+import { startApiServer, stopApiServer } from './services/api-server'
 import { getTrayIcon } from './utils/icon'
 
 let mainWindow: BrowserWindow | null = null
@@ -186,6 +188,23 @@ function registerWindowIpcHandlers(): void {
 }
 
 app.on('ready', () => {
+  // Use a fixed userData path so data survives reinstallation
+  const fixedPath = path.join(app.getPath('appData'), 'ClipCapture')
+  const oldPath = app.getPath('userData')
+  app.setPath('userData', fixedPath)
+  // Migrate data from old default path if needed
+  if (oldPath !== fixedPath && fs.existsSync(path.join(oldPath, 'notes.json')) && !fs.existsSync(path.join(fixedPath, 'notes.json'))) {
+    try {
+      if (!fs.existsSync(fixedPath)) fs.mkdirSync(fixedPath, { recursive: true })
+      for (const file of ['notes.json', 'config.json']) {
+        const src = path.join(oldPath, file)
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(fixedPath, file))
+      }
+      console.log('[Migration] Data migrated from', oldPath, 'to', fixedPath)
+    } catch (e) {
+      console.error('[Migration] Failed:', e)
+    }
+  }
   initConfig()
   initDatabase()
   registerIpcHandlers()
@@ -194,6 +213,8 @@ app.on('ready', () => {
   createQuickCaptureWindow()
   createTray()
   registerShortcuts()
+  // Start sync API server
+  startApiServer(getSyncApiKey(), getSyncPort())
 })
 
 app.on('window-all-closed', () => {
@@ -204,6 +225,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  stopApiServer()
   closeDatabase()
 })
 
