@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react'
-import type { Block, BlockType } from '../types'
+import type { Block, BlockType, NumberFormat } from '../types'
 
 function genId(): string {
   return crypto.randomUUID()
@@ -37,6 +37,8 @@ interface BlockMenuProps {
   y: number
   index: number
   blockCount: number
+  blockType: BlockType
+  blockNumberFormat?: NumberFormat
   onAction: (action: BlockMenuAction) => void
   onClose: () => void
 }
@@ -47,6 +49,7 @@ type BlockMenuAction =
   | { type: 'moveUp'; index: number }
   | { type: 'moveDown'; index: number }
   | { type: 'turnInto'; index: number; blockType: BlockType }
+  | { type: 'setNumberFormat'; index: number; numberFormat: NumberFormat }
 
 // --- Helpers ---
 
@@ -76,6 +79,16 @@ const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   heading2: '标题 2',
   heading3: '标题 3'
 }
+
+const NUMBER_FORMAT_NAMES: Record<NumberFormat, string> = {
+  decimal: '1. 2. 3.',
+  'lower-alpha': 'a. b. c.',
+  'upper-alpha': 'A. B. C.',
+  'lower-roman': 'i. ii. iii.',
+  'upper-roman': 'I. II. III.'
+}
+
+const NUMBER_FORMATS: NumberFormat[] = ['decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman']
 
 const SLASH_ITEMS: { type: BlockType; icon: string }[] = [
   { type: 'text', icon: '¶' },
@@ -131,7 +144,7 @@ function SlashMenu({ x, y, onSelect, onClose }: SlashMenuProps) {
 
 // --- BlockHandleMenu ---
 
-function BlockHandleMenu({ x, y, index, blockCount, onAction, onClose }: BlockMenuProps) {
+function BlockHandleMenu({ x, y, index, blockCount, blockType, blockNumberFormat, onAction, onClose }: BlockMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -172,9 +185,20 @@ function BlockHandleMenu({ x, y, index, blockCount, onAction, onClose }: BlockMe
       </div>
       {(['text', 'bullet', 'numbered', 'todo', 'heading1', 'heading2', 'heading3'] as BlockType[]).map(t => (
         <div key={t} className="block-handle-menu-item block-handle-menu-sub" onClick={() => onAction({ type: 'turnInto', index, blockType: t })}>
-          {BLOCK_TYPE_NAMES[t]}
+          {t === blockType ? `✓ ${BLOCK_TYPE_NAMES[t]}` : BLOCK_TYPE_NAMES[t]}
         </div>
       ))}
+      {blockType === 'numbered' && (
+        <>
+          <div className="block-handle-menu-separator" />
+          <div className="block-handle-menu-item block-handle-menu-format-header">编号格式</div>
+          {NUMBER_FORMATS.map(f => (
+            <div key={f} className="block-handle-menu-item block-handle-menu-sub" onClick={() => onAction({ type: 'setNumberFormat', index, numberFormat: f })}>
+              {f === (blockNumberFormat || 'decimal') ? `✓ ${NUMBER_FORMAT_NAMES[f]}` : NUMBER_FORMAT_NAMES[f]}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
@@ -299,7 +323,7 @@ const BlockRow = React.memo(function BlockRow({
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
       />
-      {block.loggedAt && (
+      {block.loggedAt && block.content.trim() && (
         <span className="block-timestamp">{formatLoggedAt(block.loggedAt)}</span>
       )}
     </div>
@@ -326,6 +350,16 @@ function toRoman(n: number): string {
   return result
 }
 
+function formatNumber(n: number, format?: NumberFormat): string {
+  switch (format || 'decimal') {
+    case 'decimal': return String(n)
+    case 'lower-alpha': return String.fromCharCode(96 + Math.min(n, 26))
+    case 'upper-alpha': return String.fromCharCode(64 + Math.min(n, 26))
+    case 'lower-roman': return toRoman(n).toLowerCase()
+    case 'upper-roman': return toRoman(n)
+  }
+}
+
 function computeNumberedLabels(blocks: Block[]): (string | null)[] {
   const labels: (string | null)[] = []
   const counters = [0, 0, 0, 0, 0]
@@ -339,12 +373,20 @@ function computeNumberedLabels(blocks: Block[]): (string | null)[] {
       counters[indent]++
       const n = counters[indent]
 
-      switch (indent) {
-        case 0:  labels.push(String(n)); break
-        case 1:  labels.push(numberToLetter(n)); break
-        case 2:  labels.push(toRoman(n).toLowerCase()); break
-        default: labels.push(String(n)); break
+      // Use block's numberFormat if set, otherwise derive from indent level
+      const blockFormat = blocks[i].numberFormat
+      let format: NumberFormat
+      if (blockFormat) {
+        format = blockFormat
+      } else {
+        switch (indent) {
+          case 0:  format = 'decimal'; break
+          case 1:  format = 'lower-alpha'; break
+          case 2:  format = 'lower-roman'; break
+          default: format = 'decimal'; break
+        }
       }
+      labels.push(formatNumber(n, format))
     } else {
       counters.fill(0)
       labels.push(null)
@@ -414,6 +456,17 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
       if (block.type === 'text' && text === '/' && block.content === '') {
         // Show slash menu - handled in onKeyDown
       }
+
+      // Always sync content from DOM so block.content stays current
+      // (needed for timestamp visibility and other content-dependent renders)
+      const currentContent = el?.textContent ?? ''
+      if (currentContent !== block.content) {
+        const newBlocks = blocks.map((b, i) => ({
+          ...b,
+          content: blockRefs.current[i]?.textContent ?? b.content
+        }))
+        triggerChange(newBlocks)
+      }
     }, [blocks, triggerChange])
 
     // --- Structural operations ---
@@ -435,7 +488,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
         type: block.type === 'todo' ? 'todo' : block.type,
         content: after,
         checked: block.type === 'todo' ? false : undefined,
-        indent: block.indent
+        indent: block.indent,
+        numberFormat: block.numberFormat
       }
       current[index] = { ...block, content: before }
       current.splice(index + 1, 0, newBlock)
@@ -534,7 +588,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
               mergeWithPrevious(index)
             } else if (isEmpty) {
               e.preventDefault()
-              // First block empty, keep it
+              // First block empty with numbering → convert to text to remove number
+              if (blocks[0].type !== 'text') {
+                const current = getBlocksWithContent()
+                current[0] = { ...current[0], type: 'text', checked: undefined, numberFormat: undefined }
+                triggerChange(current)
+              }
             }
           }
           break
@@ -607,7 +666,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
         ...current[slashMenu.index],
         type,
         content: '',
-        checked: type === 'todo' ? false : undefined
+        checked: type === 'todo' ? false : undefined,
+        numberFormat: type === 'numbered' ? current[slashMenu.index].numberFormat : undefined
       }
       triggerChange(current)
       setSlashMenu(null)
@@ -656,7 +716,15 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
           current[action.index] = {
             ...current[action.index],
             type: action.blockType,
-            checked: action.blockType === 'todo' ? false : undefined
+            checked: action.blockType === 'todo' ? false : undefined,
+            numberFormat: action.blockType === 'numbered' ? current[action.index].numberFormat : undefined
+          }
+          triggerChange(current)
+          break
+        case 'setNumberFormat':
+          current[action.index] = {
+            ...current[action.index],
+            numberFormat: action.numberFormat
           }
           triggerChange(current)
           break
@@ -713,6 +781,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, BlockEditorProps>(
             y={blockMenu.y}
             index={blockMenu.index}
             blockCount={blocks.length}
+            blockType={blocks[blockMenu.index]?.type || 'text'}
+            blockNumberFormat={blocks[blockMenu.index]?.numberFormat}
             onAction={handleBlockMenuAction}
             onClose={() => setBlockMenu(null)}
           />
